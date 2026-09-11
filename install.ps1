@@ -208,11 +208,17 @@ function Invoke-DevPocketInstall {
         } elseif ($Ctx.ShimCreated -and (Test-Path -LiteralPath $Ctx.ShimPath)) {
             Remove-Item -LiteralPath $Ctx.ShimPath -Force -ErrorAction SilentlyContinue
         }
+        if ($Ctx.BashShimBackup -and (Test-Path -LiteralPath $Ctx.BashShimBackup)) {
+            Copy-Item -LiteralPath $Ctx.BashShimBackup -Destination $Ctx.BashShimPath -Force -ErrorAction SilentlyContinue
+        } elseif ($Ctx.BashShimCreated -and (Test-Path -LiteralPath $Ctx.BashShimPath)) {
+            Remove-Item -LiteralPath $Ctx.BashShimPath -Force -ErrorAction SilentlyContinue
+        }
     }
     $ctx = [ordered]@{
         Target = ''; CurrentFile = (Join-Path $InstallDir 'current')
         PrevVersion = ''; CreatedNew = $false
         ShimPath = (Join-Path $BinDir 'devpocket.cmd'); ShimBackup = ''; ShimCreated = $false
+        BashShimPath = (Join-Path $BinDir 'devpocket'); BashShimBackup = ''; BashShimCreated = $false
     }
 
     try {
@@ -335,6 +341,7 @@ function Invoke-DevPocketInstall {
         }
 
         # 入口 shim
+        try {
         New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
         $shim = @(
             '@echo off'
@@ -365,6 +372,37 @@ function Invoke-DevPocketInstall {
             $ctx.ShimCreated = $true
         }
 
+        # Git Bash does not apply Windows PATHEXT, so `devpocket` does not resolve
+        # to devpocket.cmd. Install an extensionless Bash shim in the same PATH dir.
+        $bashShim = @'
+#!/usr/bin/env bash
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+"$SCRIPT_DIR/devpocket.cmd" "$@"
+exit $?
+'@
+        $bashShim = $bashShim.TrimStart("`r", "`n") -replace "`r`n", "`n"
+        if (Test-Path -LiteralPath $ctx.BashShimPath) {
+            $existingBashShim = [IO.File]::ReadAllText($ctx.BashShimPath)
+            if ($existingBashShim -ne $bashShim) {
+                $ctx.BashShimBackup = Join-Path $tmp 'devpocket.bak'
+                Copy-Item -LiteralPath $ctx.BashShimPath -Destination $ctx.BashShimBackup -Force
+                [IO.File]::WriteAllText($ctx.BashShimPath, $bashShim, [Text.UTF8Encoding]::new($false))
+            }
+        } else {
+            [IO.File]::WriteAllText($ctx.BashShimPath, $bashShim, [Text.UTF8Encoding]::new($false))
+            $ctx.BashShimCreated = $true
+        }
+
+        if ($env:DEVPOCKET_TEST_FAIL_AFTER_SHIMS -eq '1') {
+            throw '测试注入：双入口写入后失败（DEVPOCKET_TEST_FAIL_AFTER_SHIMS）。'
+        }
+
+        } catch {
+            Write-Err "写入命令入口失败，开始回滚：$($_.Exception.Message)"
+            & $rollback $ctx
+            Fail 7 '安装失败并已回滚。'
+        }
+
         # PATH（用户级，幂等）
         if (-not $NoPathUpdate) {
             try {
@@ -382,7 +420,8 @@ function Invoke-DevPocketInstall {
         Write-Log "DevPocket $Version 安装完成。"
         Write-Log "  安装目录：$InstallDir"
         Write-Log "  当前版本：$target"
-        Write-Log "  命令入口：$($ctx.ShimPath)"
+        Write-Log "  PowerShell/CMD 入口：$($ctx.ShimPath)"
+        Write-Log "  Git Bash 入口：$($ctx.BashShimPath)"
         if ($NoPathUpdate) {
             Write-Log "  提示：未修改 PATH。可手动把 $BinDir 加入 PATH 后使用 devpocket 命令。"
         }

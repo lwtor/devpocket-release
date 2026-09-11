@@ -15,7 +15,7 @@ powershell -ExecutionPolicy Bypass -File .\devpocket-install.ps1
 powershell -ExecutionPolicy Bypass -File .\devpocket-install.ps1 -Version '<版本号>'
 ```
 
-默认安装到 `%LOCALAPPDATA%\DevPocket`，无需管理员权限。新开终端后运行 `devpocket capability`。
+默认安装到 `%LOCALAPPDATA%\DevPocket`，无需管理员权限。安装器同时创建 PowerShell/CMD 的 `devpocket.cmd` 入口和 Git Bash 的无扩展名 `devpocket` 入口；新开对应终端后均可直接运行 `devpocket capability`。
 
 ## macOS / Linux
 
