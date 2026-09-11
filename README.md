@@ -12,7 +12,7 @@ powershell -ExecutionPolicy Bypass -File .\devpocket-install.ps1
 安装指定版本：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\devpocket-install.ps1 -Version 0.22.1
+powershell -ExecutionPolicy Bypass -File .\devpocket-install.ps1 -Version '<版本号>'
 ```
 
 默认安装到 `%LOCALAPPDATA%\DevPocket`，无需管理员权限。新开终端后运行 `devpocket capability`。
@@ -27,7 +27,7 @@ sh devpocket-install.sh
 安装指定版本：
 
 ```bash
-sh devpocket-install.sh --version 0.22.1
+sh devpocket-install.sh --version '<版本号>'
 ```
 
 默认安装到 `${XDG_DATA_HOME:-$HOME/.local/share}/devpocket`，入口为 `$HOME/.local/bin/devpocket`，不使用 `sudo`。需要自动更新 profile 时增加 `--update-profile`。
